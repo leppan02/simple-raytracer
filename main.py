@@ -5,17 +5,33 @@ import matplotlib.pyplot as plt
 def solve(p = [0,0,0]):
 	return np.roots(p)
 
-def intersect(origin, direction, object_postion, object_size):
-	radius = object_size**2
-	ray = direction/np.linalg.norm(direction)
-	circle = np.array(object_postion)
-	dist_to_circle = np.linalg.norm(circle)
-	dist = ray.dot(circle)
-	r = (dist_to_circle**2)-(dist**2)
-	if r > radius:
-		return 250
-	offset = (radius-r)**0.5
-	return int(int(dist-offset)*2.5)
+def pythagoras(a = None,b = None,c = None):
+	if a == None:
+		return (c**2-b**2)**0.5
+	if b == None:
+		return (c**2-a**2)**0.5
+	if c == None:
+		return (a**2+b**2)**0.5
+
+def intersect_relative_origin(direction, postion, radius):
+	ray = direction/np.linalg.norm(direction) #normalisera till längd 1
+	dist_to_circle = np.linalg.norm(postion)
+	dist = ray.dot(postion) #avståndet till punkten mellan skärningar
+	fake_r = pythagoras(c=dist_to_circle,a=dist)
+	if fake_r > radius:
+		return None , None
+	offset = pythagoras(c = radius, a = fake_r)
+	distA = dist-offset
+	distB = dist+offset
+	if distA <= 0:
+		intersectA = None
+	else:
+		intersectA = distA*ray
+	if distB <= 0:
+		intersectB = None
+	else:
+		intersectB = distB*ray
+	return intersectA , intersectB
 	
 def main(): 
 	res = 200
