@@ -1,6 +1,9 @@
-mod save;
-mod structs;
-const dimension: u32 = 3000;
+pub mod save;
+pub mod structs;
+const dimension: u32 = 100;
+mod simple;
+
 fn main() {
-    save::save();
+    let picture = simple::generate();
+    save::save(&picture);
 }
