@@ -1,9 +1,9 @@
 pub mod save;
 pub mod structs;
-const dimension: u32 = 100;
-mod simple;
 
 fn main() {
-    let picture = simple::generate();
+    let mut picture = structs::Picture::new((200,200));
+    let scene = structs::Scene::new();
+    scene.generate_picture(&mut picture, 0);
     save::save(&picture);
 }
