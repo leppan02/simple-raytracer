@@ -77,9 +77,9 @@ impl Point {
     }
     pub fn mult(&self, multiplier: f64) -> Self {
         Self(
-            self.0 / multiplier,
-            self.1 / multiplier,
-            self.2 / multiplier,
+            self.0 * multiplier,
+            self.1 * multiplier,
+            self.2 * multiplier,
         )
     }
     pub fn dot(&self, other: &Self) -> f64 {
@@ -121,14 +121,14 @@ pub enum Object {
 }
 
 impl Object {
-    pub fn intersect(&self, direction: &Point, origin: &Point) -> IntersectResult {
+    pub fn intersect(&self, direction: &Point, origin: &Point, debug: bool) -> IntersectResult {
         match self {
             Object::Circle {
                 position,
                 radius,
                 surface,
             } => {
-                let pos = position.clone() - origin.clone();
+                let pos = position.clone()-origin.clone();
                 let dist = direction.dot(&pos);
                 let fake_r = (pos.len().powi(2) - dist.powi(2)).sqrt();
                 if fake_r < *radius {
@@ -136,7 +136,7 @@ impl Object {
                     if len <= 1.0 {
                         IntersectResult::None
                     } else {
-                        let point = (direction.mult(dist)) + origin.clone();
+                        let point = direction.mult(len);
                         IntersectResult::intersect {
                             dist,
                             surface: surface.clone(),
@@ -171,8 +171,18 @@ impl Scene {
                     }),
                 },
                 Object::Circle {
-                    position: Point(0.0, 0.0, 35.0),
-                    radius: 15.0,
+                    position: Point(20.0, 0.0, 40.0),
+                    radius: 20.0,
+                    surface: None,
+                },
+                Object::Circle {
+                    position: Point(-20.0, 0.0, 40.0),
+                    radius: 20.0,
+                    surface: None,
+                },
+                Object::Circle {
+                    position: Point(0.0, -10.0, 40.0),
+                    radius: 20.0,
                     surface: None,
                 },
             ],
@@ -191,23 +201,33 @@ impl Scene {
                 let ray = Point(x, y, 1.0).normalised();
                 let mut res = IntersectResult::None;
                 for i in &self.objects {
-                    res = res.update(i.intersect(&ray, &origin));
+                    res = res.update(i.intersect(&ray, &origin, false));
                 }
                 picture.data[xi as usize][yi as usize] = self.bounce(res);
             }
         }
     }
-    fn bounce(&self, intersect: IntersectResult) -> Color{
+    fn bounce(&self, intersect: IntersectResult) -> Color {
         match intersect {
             IntersectResult::None => Color(0.0, 0.0, 0.0),
-            IntersectResult::intersect { surface, .. } => {
-                match surface {
-                    None=>Color(1.0, 1.0, 1.0),
-                    _=>{
-                        Color(1.0,0.0,0.0)
+            IntersectResult::intersect {
+                surface,
+                normal,
+                point,
+                ..
+            } => match surface {
+                None => Color(1.0, 1.0, 1.0),
+                _ => {
+                    let mut res = IntersectResult::None;
+                    for i in &self.objects {
+                        res = res.update(i.intersect(&normal.normalised(), &point, true)); 
+                    }
+                    match res {
+                        IntersectResult::None=>Color(0.5,0.0,0.0),
+                        IntersectResult::intersect{..}=>Color(1.0,0.0,0.0)
                     }
                 }
-            }
+            },
         }
     }
 }
