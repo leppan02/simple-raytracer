@@ -1,3 +1,9 @@
+const BLACK: Color = Color(0.0, 0.0, 0.0);
+const WHITE: Color = Color(1.0, 1.0, 1.0);
+const RED: Color = Color(1.0, 0.0, 0.0);
+const BLUE: Color = Color(0.0, 0.0, 1.0);
+const GREEN: Color = Color(0.0, 1.0, 0.0);
+
 pub struct Picture {
     pub position: Point,
     pub size: (u32, u32),
@@ -26,41 +32,47 @@ impl Color {
             (self.2 * 255.0) as u8,
         )
     }
+    pub fn light(&self, light: Color, dist: f64) -> Self {
+        let distf =dist.powf(0.05);
+        Color(
+            self.0 * light.0 / distf,
+            self.1 * light.1 / distf,
+            self.2 * light.2 / distf,
+        )
+    }
 }
 #[derive(Debug, Clone, Copy)]
 pub enum IntersectResult {
-    intersect {
-        surface: Option<Surface>,
+    Intersect {
+        surface: Surface,
         point: Point,
         normal: Point,
         dist: f64,
-        ray: (Point, Point),
+        ray: Point,
     },
     None,
 }
 impl IntersectResult {
     pub fn update(self, other: Self) -> Self {
-        let mut dist2: f64 = 0.0;
         match other {
-            IntersectResult::None => return self,
-            IntersectResult::intersect { dist, .. } => dist2 = dist,
-        }
-        match self {
-            IntersectResult::None => other,
-            IntersectResult::intersect { dist, .. } => {
-                if dist2 < dist {
-                    other
-                } else {
-                    self
+            IntersectResult::None => self,
+            IntersectResult::Intersect { dist: odist, .. } => match self {
+                IntersectResult::None => other,
+                IntersectResult::Intersect { dist: sdist, .. } => {
+                    if odist < sdist {
+                        other
+                    } else {
+                        self
+                    }
                 }
-            }
+            },
         }
     }
 }
 #[derive(Debug, Clone, Copy)]
-pub struct Surface {
-    reflection: f64,
-    color: Color,
+pub enum Surface {
+    Bounce { diffraction: f64, color: Color },
+    Light { color: Color },
 }
 #[derive(Debug, Clone, Copy)]
 pub struct Point(pub f64, pub f64, pub f64);
@@ -95,6 +107,9 @@ impl Point {
     pub fn new(x: f64, y: f64, z: f64) -> Self {
         Self(x, y, z)
     }
+    pub fn mirror(&self, other: &Self) -> Self {
+        *self - other.mult(2.0 * self.dot(&other))
+    }
 }
 impl std::ops::Sub for Point {
     type Output = Point;
@@ -112,38 +127,41 @@ pub enum Object {
     Circle {
         position: Point,
         radius: f64,
-        surface: Option<Surface>,
+        surface: Surface,
     },
     Plane {
-        equation: (Point, f64),
-        surface: Option<Surface>,
+        equation: (Point, Point),
+        surface: Surface,
     },
 }
 
 impl Object {
-    pub fn intersect(&self, direction: &Point, origin: &Point, debug: bool) -> IntersectResult {
+    pub fn intersect(&self, dir: &Point, origin: &Point, debug: bool) -> IntersectResult {
         match self {
             Object::Circle {
-                position,
-                radius,
-                surface,
+                position: cposition,
+                radius: radius,
+                surface: csurface,
             } => {
-                let pos = position.clone()-origin.clone();
-                let dist = direction.dot(&pos);
-                let fake_r = (pos.len().powi(2) - dist.powi(2)).sqrt();
-                if fake_r < *radius {
-                    let len = dist - ((*radius).powi(2) - fake_r.powi(2)).sqrt();
-                    if len <= 1.0 {
-                        IntersectResult::None
-                    } else {
-                        let point = direction.mult(len);
-                        IntersectResult::intersect {
-                            dist,
-                            surface: surface.clone(),
-                            point: point.clone(),
-                            normal: point.clone() - position.clone(),
-                            ray: (direction.clone(), origin.clone()),
-                        }
+                let L = *cposition-*origin;
+                let tca = L.dot(&dir);
+                if tca <= 1.0{
+                    return IntersectResult::None;
+                }
+                let d2 = L.dot(&L)-tca*tca;
+                if d2 > (*radius).powi(2){
+                    return IntersectResult::None;
+                }
+                let thc = ((*radius).powi(2)-d2).sqrt();
+                let t = f64::min(tca-thc,tca-thc);
+                if 1.0 < t {
+                    let intersect = dir.mult(t)+*origin;
+                    IntersectResult::Intersect {
+                        dist: t,
+                        surface: csurface.clone(),
+                        point: intersect,
+                        normal: (intersect.clone() - cposition.clone()).normalised(),
+                        ray: dir.clone(),
                     }
                 } else {
                     IntersectResult::None
@@ -163,27 +181,25 @@ impl Scene {
         Scene {
             objects: vec![
                 Object::Circle {
-                    position: Point(0.0, 30.0, 40.0),
-                    radius: 10.0,
-                    surface: Some(Surface {
-                        reflection: 1.0,
-                        color: Color(0.5, 0.5, 0.0),
-                    }),
+                    position: Point(0.0, 25.0, 80.0),
+                    radius: 20.0,
+                    surface: Surface::Bounce {
+                        diffraction: 1.0,
+                        color: WHITE,
+                    },
                 },
                 Object::Circle {
-                    position: Point(20.0, 0.0, 40.0),
+                    position: Point(20.0, -20.0, 60.0),
                     radius: 20.0,
-                    surface: None,
+                    surface: Surface::Bounce {
+                        diffraction: 1.0,
+                        color: WHITE,
+                    },
                 },
                 Object::Circle {
-                    position: Point(-20.0, 0.0, 40.0),
-                    radius: 20.0,
-                    surface: None,
-                },
-                Object::Circle {
-                    position: Point(0.0, -10.0, 40.0),
-                    radius: 20.0,
-                    surface: None,
+                    position: Point(0.0, 0.0, 0.0),
+                    radius: 40.0,
+                    surface: Surface::Light { color: BLUE },
                 },
             ],
         }
@@ -193,41 +209,47 @@ impl Scene {
         let (xsize, ysize) = picture.size.clone();
         let xrange = ((xsize - 1) as f64) / 2.0;
         let yrange = ((ysize - 1) as f64) / 2.0;
-        let step = 1.0 / xrange;
+        let step = 0.6 / xrange;
         for xi in 0..xsize {
             for yi in 0..ysize {
                 let x = step * (xi as f64 - xrange);
                 let y = step * (yrange - yi as f64);
-                let ray = Point(x, y, 1.0).normalised();
-                let mut res = IntersectResult::None;
-                for i in &self.objects {
-                    res = res.update(i.intersect(&ray, &origin, false));
-                }
-                picture.data[xi as usize][yi as usize] = self.bounce(res);
+                let ray = Point(x, y, 1.0);
+                picture.data[yi as usize][xi as usize] =
+                    self.bounce(self.calculate(&ray, &origin), depth);
             }
         }
     }
-    fn bounce(&self, intersect: IntersectResult) -> Color {
+    fn bounce(&self, intersect: IntersectResult, depth: u32) -> Color {
+        if depth == 0 {
+            return WHITE.light(Color(0.5, 0.5,0.5), 1.0);
+        }
         match intersect {
-            IntersectResult::None => Color(0.0, 0.0, 0.0),
-            IntersectResult::intersect {
+            IntersectResult::None => WHITE.light(Color(0.25, 0.25,0.25), 1.0), //hit nothing
+            IntersectResult::Intersect {
+                //hit something
                 surface,
                 normal,
                 point,
+                dist: adist,
+                ray,
                 ..
             } => match surface {
-                None => Color(1.0, 1.0, 1.0),
-                _ => {
-                    let mut res = IntersectResult::None;
-                    for i in &self.objects {
-                        res = res.update(i.intersect(&normal.normalised(), &point, true)); 
-                    }
-                    match res {
-                        IntersectResult::None=>Color(0.5,0.0,0.0),
-                        IntersectResult::intersect{..}=>Color(1.0,0.0,0.0)
-                    }
+                Surface::Light { color } => color.light(WHITE, adist), //hit light return light
+                Surface::Bounce { color, .. } => {
+                    //hit object
+                    let bounce = ray.mirror(&normal).normalised(); //reflection
+                    let res = self.bounce(self.calculate(&bounce, &point), depth-1);
+                    color.light(res, adist)
                 }
             },
         }
+    }
+    fn calculate(&self, direction: &Point, origin: &Point) -> IntersectResult {
+        let mut ret = IntersectResult::None;
+        for i in &self.objects {
+            ret = ret.update(i.intersect(&direction.normalised(), &origin, false));
+        }
+        ret
     }
 }

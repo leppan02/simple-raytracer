@@ -2,8 +2,8 @@ pub mod save;
 pub mod structs;
 
 fn main() {
-    let mut picture = structs::Picture::new((10000,10000));
+    let mut picture = structs::Picture::new((3000,3000));
     let scene = structs::Scene::new();
-    scene.generate_picture(&mut picture, 0);
+    scene.generate_picture(&mut picture, 5);
     save::save(&picture);
 }
