@@ -1,8 +1,8 @@
 const BLACK: Color = Color(0.0, 0.0, 0.0);
 const WHITE: Color = Color(1.0, 1.0, 1.0);
-const RED: Color = Color(1.0, 0.0, 0.0);
-const BLUE: Color = Color(0.0, 0.0, 1.0);
-const GREEN: Color = Color(0.0, 1.0, 0.0);
+const RED: Color = Color(1.0, 0.1, 0.1);
+const BLUE: Color = Color(0.1, 0.1, 1.0);
+const GREEN: Color = Color(0.1, 1.0, 0.1);
 
 pub struct Picture {
     pub position: Point,
@@ -50,14 +50,14 @@ pub enum IntersectResult {
         dist: f64,
         ray: Point,
     },
-    None,
+    None(Point),
 }
 impl IntersectResult {
     pub fn update(self, other: Self) -> Self {
         match other {
-            IntersectResult::None => self,
+            IntersectResult::None(..) => self,
             IntersectResult::Intersect { dist: odist, .. } => match self {
-                IntersectResult::None => other,
+                IntersectResult::None(..) => other,
                 IntersectResult::Intersect { dist: sdist, .. } => {
                     if odist < sdist {
                         other
@@ -146,11 +146,11 @@ impl Object {
                 let L = *cposition-*origin;
                 let tca = L.dot(&dir);
                 if tca <= 1.0{
-                    return IntersectResult::None;
+                    return IntersectResult::None(*dir);
                 }
                 let d2 = L.dot(&L)-tca*tca;
                 if d2 > (*radius).powi(2){
-                    return IntersectResult::None;
+                    return IntersectResult::None(*dir);
                 }
                 let thc = ((*radius).powi(2)-d2).sqrt();
                 let t = f64::min(tca-thc,tca-thc);
@@ -164,10 +164,10 @@ impl Object {
                         ray: dir.clone(),
                     }
                 } else {
-                    IntersectResult::None
+                    IntersectResult::None(*dir)
                 }
             }
-            _ => IntersectResult::None,
+            _ => IntersectResult::None(*dir),
         }
     }
 }
@@ -177,31 +177,54 @@ pub struct Scene {
 }
 
 impl Scene {
-    pub fn new() -> Self {
+    pub fn new(t:i32) -> Self {
+        let time = (3.141592*t as f64)/180.0;
+        let x = 35.0*time.sin();
+        let y = 35.0*time.cos();
         Scene {
             objects: vec![
                 Object::Circle {
-                    position: Point(0.0, 25.0, 80.0),
-                    radius: 20.0,
+                    position: Point(x, y, 95.0),
+                    radius: 15.0,
+                    surface: Surface::Bounce {
+                        diffraction: 1.0,
+                        color: BLUE,
+                    },
+                },
+                Object::Circle {
+                    position: Point(0.0, 0.0,95.0),
+                    radius: 12.0,
                     surface: Surface::Bounce {
                         diffraction: 1.0,
                         color: WHITE,
                     },
                 },
                 Object::Circle {
-                    position: Point(20.0, -20.0, 60.0),
-                    radius: 20.0,
+                    position: Point(-x, -y, 95.0),
+                    radius: 15.0,
                     surface: Surface::Bounce {
                         diffraction: 1.0,
-                        color: WHITE,
+                        color: BLUE,
                     },
                 },
                 Object::Circle {
-                    position: Point(0.0, 0.0, 0.0),
-                    radius: 40.0,
-                    surface: Surface::Light { color: BLUE },
+                    position: Point(-y, 0.0, 95.0-x),
+                    radius: 15.0,
+                    surface: Surface::Bounce {
+                        diffraction: 1.0,
+                        color: RED,
+                    },
                 },
-            ],
+                Object::Circle {
+                    position: Point(y, 0.0, 95.0+x),
+                    radius: 15.0,
+                    surface: Surface::Bounce {
+                        diffraction: 1.0,
+                        color: RED,
+                    },
+                },
+                
+            ]
         }
     }
     pub fn generate_picture(&self, picture: &mut Picture, depth: u32) -> () {
@@ -209,7 +232,7 @@ impl Scene {
         let (xsize, ysize) = picture.size.clone();
         let xrange = ((xsize - 1) as f64) / 2.0;
         let yrange = ((ysize - 1) as f64) / 2.0;
-        let step = 0.6 / xrange;
+        let step = 1.0 / xrange;
         for xi in 0..xsize {
             for yi in 0..ysize {
                 let x = step * (xi as f64 - xrange);
@@ -225,7 +248,9 @@ impl Scene {
             return WHITE.light(Color(0.5, 0.5,0.5), 1.0);
         }
         match intersect {
-            IntersectResult::None => WHITE.light(Color(0.25, 0.25,0.25), 1.0), //hit nothing
+            IntersectResult::None(dir) => {let v = f64::min(1.0,f64::max(dir.dot(&Point(1.0,0.0,-1.0).normalised()),0.0).powf(3.0)+0.01).powf(0.33);
+                        WHITE.light(Color(v,v,v), 1.0)
+            },
             IntersectResult::Intersect {
                 //hit something
                 surface,
@@ -246,7 +271,7 @@ impl Scene {
         }
     }
     fn calculate(&self, direction: &Point, origin: &Point) -> IntersectResult {
-        let mut ret = IntersectResult::None;
+        let mut ret = IntersectResult::None(*direction);
         for i in &self.objects {
             ret = ret.update(i.intersect(&direction.normalised(), &origin, false));
         }
