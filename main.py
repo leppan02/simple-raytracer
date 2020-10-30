@@ -2,10 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def solve(p=[0, 0, 0]):
-    return np.roots(p)
-
-
 def pythagoras(a=None, b=None, c=None):
     if a == None:
         return (c**2-b**2)**0.5
@@ -50,20 +46,9 @@ def main():
             cur_dir[2] += y
             point = intersect_relative_origin(cur_dir, *circle)
             window[x][y] = min(point, window[x][y])
-    circle = (np.array([100, -50, 0]), 20)
-    for x in range(res*2):
-        for y in range(res*2):
-            cur_dir = direction.copy()
-            cur_dir[1] += x
-            cur_dir[2] += y
-            point = intersect_relative_origin(cur_dir, *circle)
-            window[x][y] = min(point, window[x][y])
     window = np.array(window)
     plt.imshow(window, cmap="gray")
     plt.show()
 
 
 main()
-
-#window = np.matrix([[0 for _ in range(100)] for _ in range(100)])
-#window_pos = np.matrix([50, -50, -50])
